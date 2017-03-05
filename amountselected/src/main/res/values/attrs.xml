@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="ScaleView">
+        <attr name="selectionMarkColor" format="color"/>
+        <attr name="scaleMarkColor" format="color"/>
+        <attr name="scaleNumberColor" format="color"/>
+        <attr name="scaleNumberSize" format="dimension"/>
+        <attr name="scaleCellSpace" format="dimension"/>
+        <attr name="smallMarkSize" format="dimension"/>
+        <attr name="middleMarkSize" format="dimension"/>
+    </declare-styleable>
+</resources>
