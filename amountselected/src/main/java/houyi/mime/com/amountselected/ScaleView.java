@@ -60,6 +60,7 @@ public class ScaleView extends View {
             postOffset(mSelectionOffset);
         }
     };;
+    private ValueAnimator mFlingAnimator;
 
     public ScaleView(Context context) {
         this(context, null);
@@ -98,6 +99,9 @@ public class ScaleView extends View {
                 isCanDrag = true;
             }
         });
+
+        mFlingAnimator = new ValueAnimator();
+        mFlingAnimator.setDuration(500);
 
         mScaleMarkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mScaleMarkPaint.setColor(mScaleMarkColor);
@@ -277,6 +281,14 @@ public class ScaleView extends View {
 
     private void postOffset(float offset) {
 
+        if(mSelectionAmount==mMaxAmount&&offset>0){
+            mSelectionOffset=0;
+            return;
+        }
+        if(mSelectionAmount==mMinAmount&&offset<0){
+            mSelectionOffset=0;
+            return;
+        }
         Log.d(TAG, "postOffset: mSelectionOffset" + mSelectionOffset);
         if (mSelectionOffset >= mScaleCellSpace) {
             mSelectionOffset = mSelectionOffset - mScaleCellSpace;
