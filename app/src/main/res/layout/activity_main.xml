@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/activity_main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,8 +11,15 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="houyi.mime.com.amountselectedview.MainActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"/>
+    <houyi.mime.com.amountselected.ScaleView
+        android:id="@+id/scaleview"
+        app:scaleCellSpace="@dimen/mar_pad_len_12px"
+        app:smallMarkSize="@dimen/mar_pad_len_12px"
+        app:middleMarkSize="@dimen/mar_pad_len_24px"
+        app:scaleMarkColor="@color/color_scale_rule"
+        app:scaleNumberColor="@color/color_scale_rule"
+        app:selectionMarkColor="@color/color_select_line"
+        app:scaleNumberSize="@dimen/text_size_24px"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/mar_pad_len_100px"/>
 </RelativeLayout>
