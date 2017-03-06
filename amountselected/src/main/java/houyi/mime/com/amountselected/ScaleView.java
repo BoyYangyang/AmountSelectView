@@ -13,6 +13,7 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,14 +54,18 @@ public class ScaleView extends View {
     private float startX;
     private ValueAnimator mValueAnimator;
     private boolean isCanDrag;
-    private ValueAnimator.AnimatorUpdateListener animatorUpdateListener = new ValueAnimator.AnimatorUpdateListener() {
-        @Override
-        public void onAnimationUpdate(ValueAnimator animation) {
-            mSelectionOffset = (float) animation.getAnimatedValue();
-            postOffset(mSelectionOffset);
-        }
-    };;
+    private ValueAnimator.AnimatorUpdateListener animatorUpdateListener =
+            new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    mSelectionOffset = (float) animation.getAnimatedValue();
+                    postOffset(mSelectionOffset);
+                }
+            };
+    ;
     private ValueAnimator mFlingAnimator;
+    private GestureDetector mGestureDetector;
+    private float mBeforeValue;
 
     public ScaleView(Context context) {
         this(context, null);
@@ -90,6 +95,8 @@ public class ScaleView extends View {
         mMinAmount = DEFAULT_MIN_AMOUNT;
         mMaxAmount = mSelectionAmount = DEFAULT_MAX_AMOUNT;
 
+        mGestureDetector = new GestureDetector(getContext(), onGestureListener);
+
         mValueAnimator = new ValueAnimator();
         mValueAnimator.setDuration(100);
         mValueAnimator.addUpdateListener(animatorUpdateListener);
@@ -102,6 +109,23 @@ public class ScaleView extends View {
 
         mFlingAnimator = new ValueAnimator();
         mFlingAnimator.setDuration(500);
+        mFlingAnimator.setInterpolator(new DecelerateInterpolator());
+        mFlingAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                float value = (float) animation.getAnimatedValue();
+                float changeValue = value - mBeforeValue;
+                postOffset(mSelectionOffset -= changeValue);
+                mBeforeValue = value;
+            }
+        });
+        mFlingAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                moveToRightPosition();
+                mBeforeValue = 0;
+            }
+        });
 
         mScaleMarkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mScaleMarkPaint.setColor(mScaleMarkColor);
@@ -176,7 +200,7 @@ public class ScaleView extends View {
                 + (int) ((mMeasuredWidth / 2 + mSelectionOffset) / mScaleCellSpace) * 100;
 
         for (int amount = mMinAmount, amountCount = 0; amount <= mMaxAmount;
-             amount += 1000, amountCount++) {
+                amount += 1000, amountCount++) {
             //判断金额所在的刻度是否在显示范围内,或者是选中的金额，不在则不显示
             if (amount < theoryMinShowAmount || amount > theoryMaxShowAmount
                     || amount == mSelectionAmount) {
@@ -184,7 +208,8 @@ public class ScaleView extends View {
             }
             //计算金额中心位置
             float amountMiddleX = mMeasuredWidth / 2 - mSelectionOffset -
-                    (mSelectionAmount - ((amount % 1000 == 0) ? amount : ((amount / 1000 + 1) * 1000)))
+                    (mSelectionAmount - ((amount % 1000 == 0) ? amount
+                            : ((amount / 1000 + 1) * 1000)))
                             / 100 * mScaleCellSpace;
             String showAmount = mShowAmountList.get(amountCount);
             Rect showRect = mShowAmountRectList.get(amountCount);
@@ -197,7 +222,7 @@ public class ScaleView extends View {
         //绘制selectionMark右侧刻度
         float middleX = mMeasuredWidth / 2;
         for (int amount = mSelectionAmount + 100, amountCount = 1; amount <= mMaxAmount;
-             amount += 100, amountCount++) {
+                amount += 100, amountCount++) {
             float amountStartX = middleX - mSelectionOffset + mScaleCellSpace * amountCount;
             if (amountStartX > mMeasuredWidth) {
                 break;
@@ -206,7 +231,7 @@ public class ScaleView extends View {
         }
         //绘制selectionMark左侧刻度
         for (int amount = mSelectionAmount, amountCount = 0; amount >= mMinAmount;
-             amount -= 100, amountCount++) {
+                amount -= 100, amountCount++) {
             float amountStartX = middleX - mSelectionOffset - mScaleCellSpace * amountCount;
             if (amountStartX < 0) {
                 break;
@@ -237,7 +262,8 @@ public class ScaleView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getAction();
-        if(isCanDrag) {
+        if (isCanDrag) {
+            mGestureDetector.onTouchEvent(event);
             switch (action) {
                 case MotionEvent.ACTION_DOWN:
                     startX = event.getX();
@@ -263,7 +289,7 @@ public class ScaleView extends View {
     }
 
     private void moveToRightPosition() {
-        isCanDrag =false;
+        isCanDrag = false;
         if (Math.abs(mSelectionOffset) < mScaleCellSpace / 2) {
             mValueAnimator.setFloatValues(mSelectionOffset, 0);
         } else if (mSelectionOffset > 0) {
@@ -280,25 +306,25 @@ public class ScaleView extends View {
     }
 
     private void postOffset(float offset) {
-
-        if(mSelectionAmount==mMaxAmount&&offset>0){
-            mSelectionOffset=0;
-            return;
-        }
-        if(mSelectionAmount==mMinAmount&&offset<0){
-            mSelectionOffset=0;
-            return;
-        }
-        Log.d(TAG, "postOffset: mSelectionOffset" + mSelectionOffset);
-        if (mSelectionOffset >= mScaleCellSpace) {
+        while (mSelectionOffset >= mScaleCellSpace) {
             mSelectionOffset = mSelectionOffset - mScaleCellSpace;
             mSelectionAmount += 100;
-            Log.d(TAG, "postOffset: mSelectionAmount"+mSelectionAmount);
         }
-        if (mSelectionOffset <= -mScaleCellSpace) {
+        while (mSelectionOffset <= -mScaleCellSpace) {
             mSelectionOffset = mSelectionOffset + mScaleCellSpace;
             mSelectionAmount -= 100;
-            Log.d(TAG, "postOffset: mSelectionAmount"+mSelectionAmount);
+        }
+        if (mSelectionAmount > mMaxAmount || (mSelectionAmount == mMaxAmount
+                && mSelectionOffset > 0)) {
+            mSelectionOffset = 0;
+            mSelectionAmount = mMaxAmount;
+            return;
+        }
+        if (mSelectionAmount < mMinAmount || (mSelectionAmount == mMinAmount
+                && mSelectionOffset < 0)) {
+            mSelectionOffset = 0;
+            mSelectionAmount = mMinAmount;
+            return;
         }
         invalidate();
     }
@@ -325,14 +351,21 @@ public class ScaleView extends View {
             new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
-                                       float velocityY) {
+                        float velocityY) {
+                    isCanDrag = false;
                     float x = e2.getX() - e1.getX();
-                    float y = e2.getY() - e1.getY();
-
                     if (x > 0) {
-//                        doResult(RIGHT);
+                        float distance = velocityX / 20;
+                        Log.d(TAG, "onFling: distance" + distance);
+                        mFlingAnimator.setFloatValues(0, distance);
+                        mFlingAnimator.start();
                     } else if (x < 0) {
-//                        doResult(LEFT);
+                        float distance = velocityX / 20;
+                        mFlingAnimator.setFloatValues(0, distance);
+                        Log.d(TAG, "onFling: distance" + distance);
+                        mFlingAnimator.start();
+                    } else {
+                        isCanDrag = true;
                     }
                     return true;
                 }

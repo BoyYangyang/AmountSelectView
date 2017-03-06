@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/AmountSelectView.iml" filepath="$PROJECT_DIR$/AmountSelectView.iml" />
+      <module fileurl="file://$PROJECT_DIR$/AmountSelectedView.iml" filepath="$PROJECT_DIR$/AmountSelectedView.iml" />
       <module fileurl="file://$PROJECT_DIR$/amountselected/amountselected.iml" filepath="$PROJECT_DIR$/amountselected/amountselected.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
