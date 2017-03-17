@@ -32,6 +32,7 @@ public class ScaleView extends View {
     private static final int DEFAULT_MIN_AMOUNT = 1000;
     private static final int DEFAULT_MAX_AMOUNT = 5000;
     public static final String TAG = "ScaleView";
+    private static final float SLIDE_FACTOR = 1.2f;
 
     private int mMinAmount;
     private int mMaxAmount;
@@ -51,21 +52,22 @@ public class ScaleView extends View {
     private float mScaleCellSpace;
     private float mMiddleMarkSize;
     private float mSmallMarkSize;
-    private float startX;
+    private float mStartX;
     private ValueAnimator mValueAnimator;
     private boolean isCanDrag;
-    private ValueAnimator.AnimatorUpdateListener animatorUpdateListener =
+    private boolean isFling = false;
+    private ValueAnimator.AnimatorUpdateListener mAnimatorUpdateListener =
             new ValueAnimator.AnimatorUpdateListener() {
                 @Override
                 public void onAnimationUpdate(ValueAnimator animation) {
                     mSelectionOffset = (float) animation.getAnimatedValue();
-                    postOffset(mSelectionOffset);
+                    postOffset();
                 }
             };
-    ;
     private ValueAnimator mFlingAnimator;
     private GestureDetector mGestureDetector;
     private float mBeforeValue;
+    private AmountChangeListener mAmountChangeListener;
 
     public ScaleView(Context context) {
         this(context, null);
@@ -75,7 +77,7 @@ public class ScaleView extends View {
         this(context, attrs, 0);
     }
 
-    public ScaleView(Context context, AttributeSet attrs, int defStyleAttr) {
+    private ScaleView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         TypedArray ta = getContext().obtainStyledAttributes(attrs,
                 R.styleable.ScaleView, defStyleAttr, 0);
@@ -95,11 +97,11 @@ public class ScaleView extends View {
         mMinAmount = DEFAULT_MIN_AMOUNT;
         mMaxAmount = mSelectionAmount = DEFAULT_MAX_AMOUNT;
 
-        mGestureDetector = new GestureDetector(getContext(), onGestureListener);
+        mGestureDetector = new GestureDetector(getContext(), mSimpleOnGestureListener);
 
         mValueAnimator = new ValueAnimator();
-        mValueAnimator.setDuration(100);
-        mValueAnimator.addUpdateListener(animatorUpdateListener);
+        mValueAnimator.setDuration(50);
+        mValueAnimator.addUpdateListener(mAnimatorUpdateListener);
         mValueAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
@@ -115,15 +117,18 @@ public class ScaleView extends View {
             public void onAnimationUpdate(ValueAnimator animation) {
                 float value = (float) animation.getAnimatedValue();
                 float changeValue = value - mBeforeValue;
-                postOffset(mSelectionOffset -= changeValue);
+                mSelectionOffset -= changeValue;
+                Log.d(TAG, "onAnimationUpdate: mSelectionOffset" + mSelectionOffset);
                 mBeforeValue = value;
+                postOffset();
             }
         });
         mFlingAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                moveToRightPosition();
                 mBeforeValue = 0;
+                isFling = false;
+                moveToRightPosition();
             }
         });
 
@@ -138,7 +143,6 @@ public class ScaleView extends View {
         mScaleNumberPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mScaleNumberPaint.setColor(mScaleNumberColor);
         mScaleNumberPaint.setTextSize(mScaleNumberTextSize);
-        //TODO 设置字体
     }
 
     @Override
@@ -186,7 +190,8 @@ public class ScaleView extends View {
     }
 
     private void drawSelectionMark(Canvas canvas) {
-        canvas.drawLine((float) mMeasuredWidth / 2, 0, (float) mMeasuredWidth / 2, mMeasuredHeight,
+        canvas.drawLine((float) mMeasuredWidth / 2, 0, (float) mMeasuredWidth / 2,
+                mMeasuredHeight,
                 mSelectionMarkPaint);
     }
 
@@ -207,10 +212,9 @@ public class ScaleView extends View {
                 continue;
             }
             //计算金额中心位置
-            float amountMiddleX = mMeasuredWidth / 2 - mSelectionOffset -
-                    (mSelectionAmount - ((amount % 1000 == 0) ? amount
-                            : ((amount / 1000 + 1) * 1000)))
-                            / 100 * mScaleCellSpace;
+            float amountMiddleX = mMeasuredWidth / 2 - mSelectionOffset
+                    - (mSelectionAmount - ((amount % 1000 == 0) ? amount
+                    : ((amount / 1000 + 1) * 1000))) / 100 * mScaleCellSpace;
             String showAmount = mShowAmountList.get(amountCount);
             Rect showRect = mShowAmountRectList.get(amountCount);
             canvas.drawText(showAmount, 0, showAmount.length(),
@@ -262,28 +266,33 @@ public class ScaleView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getAction();
-        if (isCanDrag) {
-            mGestureDetector.onTouchEvent(event);
-            switch (action) {
-                case MotionEvent.ACTION_DOWN:
-                    startX = event.getX();
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    if (startX == -1) {
-                        startX = event.getX();
-                    }
-                    float endX = event.getX();
-                    float moveX = endX - startX;
-                    postOffset(mSelectionOffset -= moveX);
-                    startX = endX;
-                    break;
-                case MotionEvent.ACTION_OUTSIDE:
-                case MotionEvent.ACTION_CANCEL:
-                case MotionEvent.ACTION_UP:
+        Log.d(TAG, "onTouchEvent: isCanDrag =" + isCanDrag);
+        mGestureDetector.onTouchEvent(event);
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                resetAnimation();
+                mStartX = event.getX();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (mStartX == -1) {
+                    mStartX = event.getX();
+                }
+                float endX = event.getX();
+                float moveX = endX - mStartX;
+                mSelectionOffset -= moveX * SLIDE_FACTOR;
+                mStartX = endX;
+                postOffset();
+                break;
+            case MotionEvent.ACTION_OUTSIDE:
+            case MotionEvent.ACTION_CANCEL:
+            case MotionEvent.ACTION_UP:
+                if (!isFling) {
                     moveToRightPosition();
-                    startX = -1;
-                    break;
-            }
+                }
+                mStartX = -1;
+                break;
+            default:
+                break;
         }
         return true;
     }
@@ -305,28 +314,41 @@ public class ScaleView extends View {
         super.onScrollChanged(l, t, oldl, oldt);
     }
 
-    private void postOffset(float offset) {
-        while (mSelectionOffset >= mScaleCellSpace) {
+    private void postOffset() {
+        int preAmount = mSelectionAmount;
+        if (mSelectionOffset >= mScaleCellSpace) {
             mSelectionOffset = mSelectionOffset - mScaleCellSpace;
             mSelectionAmount += 100;
         }
-        while (mSelectionOffset <= -mScaleCellSpace) {
+        if (mSelectionOffset <= -mScaleCellSpace) {
             mSelectionOffset = mSelectionOffset + mScaleCellSpace;
             mSelectionAmount -= 100;
         }
         if (mSelectionAmount > mMaxAmount || (mSelectionAmount == mMaxAmount
-                && mSelectionOffset > 0)) {
+                && mSelectionOffset > 0)
+                || mSelectionAmount + mSelectionOffset * 100 / mScaleCellSpace > mMaxAmount) {
             mSelectionOffset = 0;
             mSelectionAmount = mMaxAmount;
-            return;
+            resetAnimation();
         }
         if (mSelectionAmount < mMinAmount || (mSelectionAmount == mMinAmount
-                && mSelectionOffset < 0)) {
+                && mSelectionOffset < 0)
+                || mSelectionAmount + mSelectionOffset * 100 / mScaleCellSpace < mMinAmount) {
             mSelectionOffset = 0;
             mSelectionAmount = mMinAmount;
-            return;
+            resetAnimation();
+        }
+        if (mAmountChangeListener != null && preAmount != mSelectionAmount) {
+            mAmountChangeListener.onAmountChanged(mSelectionAmount);
         }
         invalidate();
+    }
+
+    private void resetAnimation() {
+        mValueAnimator.cancel();
+        mFlingAnimator.cancel();
+        isFling = false;
+        mStartX = -1;
     }
 
     public void setAmount(int minAmount, int maxAmount) {
@@ -347,27 +369,49 @@ public class ScaleView extends View {
         invalidate();
     }
 
-    private GestureDetector.OnGestureListener onGestureListener =
+    private GestureDetector.OnGestureListener mSimpleOnGestureListener =
             new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
                         float velocityY) {
                     isCanDrag = false;
-                    float x = e2.getX() - e1.getX();
-                    if (x > 0) {
-                        float distance = velocityX / 20;
-                        Log.d(TAG, "onFling: distance" + distance);
-                        mFlingAnimator.setFloatValues(0, distance);
-                        mFlingAnimator.start();
-                    } else if (x < 0) {
-                        float distance = velocityX / 20;
-                        mFlingAnimator.setFloatValues(0, distance);
-                        Log.d(TAG, "onFling: distance" + distance);
-                        mFlingAnimator.start();
-                    } else {
-                        isCanDrag = true;
-                    }
+                    isFling = true;
+                    float distance = velocityX / 10;
+                    Log.d(TAG, "onFling: distance" + distance);
+                    mFlingAnimator.setFloatValues(0, distance);
+                    mFlingAnimator.start();
                     return true;
                 }
             };
+
+    public void setAmountChangeListener(AmountChangeListener amountChangeListener) {
+        this.mAmountChangeListener = amountChangeListener;
+    }
+
+    public void addAmount() {
+        if (isCanDrag) {
+            mSelectionOffset += mScaleCellSpace;
+            postOffset();
+        }
+    }
+
+    public void subtractAmount() {
+        if (isCanDrag) {
+            mSelectionOffset -= mScaleCellSpace;
+            postOffset();
+        }
+    }
+
+    public void clear() {
+        mFlingAnimator.removeAllUpdateListeners();
+        mFlingAnimator.removeAllListeners();
+        mFlingAnimator.cancel();
+        mValueAnimator.removeAllUpdateListeners();
+        mValueAnimator.removeAllListeners();
+        mValueAnimator.cancel();
+    }
+
+    public interface AmountChangeListener {
+        void onAmountChanged(int amount);
+    }
 }
